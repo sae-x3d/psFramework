@@ -1,5 +1,6 @@
 package framework.servlet;
 
+import framework.annotations.Controller;
 import framework.util.ClasseUtilitaire;
 
 import jakarta.servlet.ServletConfig;
@@ -10,14 +11,18 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 
 public class FrontControllerServlet extends HttpServlet {
+
+    private static final long serialVersionUID = 1L;
 
     private static final String CONTROLLER_PACKAGE_INIT_PARAM = "controllerPackage";
     private static final String DEFAULT_CONTROLLER_PACKAGE = "controller";
 
     private Map<String, Map<String, Method>> urlMappingMap;
+    private List<Class<?>> controllerClasses;
 
     @Override
     public void init(ServletConfig config) throws ServletException {
@@ -26,6 +31,9 @@ public class FrontControllerServlet extends HttpServlet {
         if (controllerPackage == null || controllerPackage.isEmpty()) {
             controllerPackage = DEFAULT_CONTROLLER_PACKAGE;
         }
+
+        List<Class<?>> allClasses = ClasseUtilitaire.getClassesInPackage(controllerPackage);
+        this.controllerClasses = ClasseUtilitaire.getAnnotatedClasses(allClasses, Controller.class);
         this.urlMappingMap = ClasseUtilitaire.getUrlMappingMap(controllerPackage);
     }
 
@@ -43,6 +51,14 @@ public class FrontControllerServlet extends HttpServlet {
         resp.setContentType("text/html");
         PrintWriter out = resp.getWriter();
         out.println("<html><body>");
+
+        out.println("<h2>Controleurs trouvés dans le package</h2>");
+        out.println("<ul>");
+        for (Class<?> clazz : controllerClasses) {
+            Controller ann = clazz.getAnnotation(Controller.class);
+            out.println("<li>" + clazz.getSimpleName() + " → @Controller(\"" + ann.value() + "\")</li>");
+        }
+        out.println("</ul>");
 
         String requestURI = req.getRequestURI();
         String contextPath = req.getContextPath();
@@ -67,8 +83,6 @@ public class FrontControllerServlet extends HttpServlet {
                 break;
             }
         }
-
-        out.println("<p>Controller names map: " + urlMappingMap.keySet() + "</p>");
 
         if (found && method != null) {
             try {

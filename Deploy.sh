@@ -1,15 +1,22 @@
 #!/bin/bash
 
-echo "=== Début du build du Framework (Maven) ==="
+cd "$(dirname "$0")"
 
-mvn clean install -f "$(dirname "$0")/pom.xml"
+# Nettoyage
+rm -rf out
+mkdir -p out
 
-if [ $? -eq 0 ]; then
-    mkdir -p "$(dirname "$0")/output"
-    cp "$(dirname "$0")/target/atframework-1.0-SNAPSHOT.jar" "$(dirname "$0")/output/FrameWork.jar"
-    echo "JAR créé avec succès dans le dossier 'output/'."
-    echo "=== Build terminé ==="
-else
-    echo "Erreur lors de la compilation."
+# Compilation
+javac -Xlint -cp "lib/*" -d out $(find . -name "*.java")
+
+# Vérification
+if [ $? -ne 0 ]; then
+    echo "Erreur de compilation"
     exit 1
 fi
+
+# Création du JAR
+jar cf lib/FrameWork.jar -C out .
+
+echo "JAR créé : lib/FrameWork.jar"
+rm -rf out

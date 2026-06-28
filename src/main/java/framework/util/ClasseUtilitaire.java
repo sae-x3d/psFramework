@@ -2,48 +2,110 @@ package framework.util;
 
 import framework.annotations.Controller;
 import framework.annotations.UrlMapping;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ClasspathHelper;
-import org.reflections.util.ConfigurationBuilder;
 
+import java.io.File;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class ClasseUtilitaire {
 
+    public static List<Class<?>> getClassesInPackage(String packageName) {
+        List<Class<?>> classes = new ArrayList<>();
+        try {
+            String packagePath = packageName.replace('.', '/');
+            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(packagePath);
+            while (resources.hasMoreElements()) {
+                URL resource = resources.nextElement();
+                String protocol = resource.getProtocol();
+                if ("file".equals(protocol)) {
+                    scanDirectory(new File(resource.toURI()), packageName, classes);
+                } else if ("jar".equals(protocol)) {
+                    scanJar(resource, packagePath, packageName, classes);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return classes;
+    }
+
+    public static List<Class<?>> getAnnotatedClasses(List<Class<?>> classes, Class<? extends Annotation> annotation) {
+        List<Class<?>> result = new ArrayList<>();
+        for (Class<?> clazz : classes) {
+            if (clazz.isAnnotationPresent(annotation)) {
+                result.add(clazz);
+            }
+        }
+        return result;
+    }
+
     public static Map<String, Map<String, Method>> getUrlMappingMap(String basePackage) {
-        ConfigurationBuilder config = new ConfigurationBuilder()
-                .setUrls(ClasspathHelper.forPackage(basePackage))
-                .setScanners(Scanners.TypesAnnotated);
-
-        Reflections reflections = new Reflections(config);
-        Set<Class<?>> controllerClasses = reflections.getTypesAnnotatedWith(Controller.class);
-
         Map<String, Map<String, Method>> controllerMap = new HashMap<>();
+        List<Class<?>> allClasses = getClassesInPackage(basePackage);
+        List<Class<?>> controllerClasses = getAnnotatedClasses(allClasses, Controller.class);
 
         for (Class<?> clazz : controllerClasses) {
             Controller controllerAnn = clazz.getAnnotation(Controller.class);
-            if (controllerAnn == null) {
-                continue;
-            }
             String controllerName = controllerAnn.value();
-
             Map<String, Method> methodMap = new HashMap<>();
+
             for (Method method : clazz.getDeclaredMethods()) {
                 UrlMapping urlAnn = method.getAnnotation(UrlMapping.class);
                 if (urlAnn != null) {
-                    String urlPattern = urlAnn.value();
-                    methodMap.put(urlPattern, method);
+                    methodMap.put(urlAnn.value(), method);
                 }
             }
+
             if (!methodMap.isEmpty()) {
                 controllerMap.put(controllerName, methodMap);
             }
         }
 
         return controllerMap;
+    }
+
+    private static void scanDirectory(File dir, String packageName, List<Class<?>> classes) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+
+        for (File file : files) {
+            if (file.isDirectory()) {
+                scanDirectory(file, packageName + "." + file.getName(), classes);
+            } else if (file.getName().endsWith(".class")) {
+                String className = packageName + "." + file.getName().replace(".class", "");
+                try {
+                    classes.add(Class.forName(className));
+                } catch (ClassNotFoundException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    private static void scanJar(URL resource, String packagePath, String packageName, List<Class<?>> classes) {
+        String path = resource.getPath();
+        String jarPath = path.substring(5, path.indexOf("!"));
+        try (JarFile jar = new JarFile(URLDecoder.decode(jarPath, "UTF-8"))) {
+            Enumeration<JarEntry> entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (name.startsWith(packagePath) && name.endsWith(".class") && !name.contains("$")) {
+                    String className = name.replace('/', '.').replace(".class", "");
+                    try {
+                        classes.add(Class.forName(className));
+                    } catch (ClassNotFoundException e) {
+                        // ignore
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
