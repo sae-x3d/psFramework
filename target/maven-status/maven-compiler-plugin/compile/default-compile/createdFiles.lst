@@ -1,6 +1,7 @@
 framework/models/UrlMethod.class
 framework/servlet/FrontControllerServlet.class
 framework/annotations/UrlMapping.class
+framework/util/Binder.class
 framework/annotations/Controller.class
 framework/util/ToJson.class
 framework/annotations/WebApi.class
