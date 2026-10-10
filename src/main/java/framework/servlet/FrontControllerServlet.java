@@ -1,9 +1,12 @@
 package framework.servlet;
 
 import framework.annotations.Controller;
+import framework.annotations.WebApi;
 import framework.listener.AppListener;
 import framework.models.ModelAndView;
 import framework.models.UrlMethod;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.ServletConfig;
 import jakarta.servlet.ServletContext;
@@ -21,6 +24,8 @@ import java.util.Map;
 public class FrontControllerServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String PREFIX_INIT_PARAM = "prefix";
     private static final String SUFFIX_INIT_PARAM = "suffix";
@@ -70,15 +75,71 @@ public class FrontControllerServlet extends HttpServlet {
     }
 
     private void processRequest(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        resp.setContentType("text/html");
-        PrintWriter out = resp.getWriter();
-        out.println("<html><body>");
-
         if (controllerClasses == null || urlMappingMap == null) {
-            out.println("<p>Framework non initialise (AppListener absent ?)</p>");
+            resp.setContentType("text/html");
+            resp.getWriter().println("<p>Framework non initialise (AppListener absent ?)</p>");
+            return;
+        }
+
+        String requestURI = req.getRequestURI();
+        String contextPath = req.getContextPath();
+        String pathInfo = requestURI.substring(contextPath.length());
+        if (pathInfo.startsWith("/")) {
+            pathInfo = pathInfo.substring(1);
+        }
+
+        UrlMethod key = new UrlMethod(pathInfo, req.getMethod());
+        Method method = null;
+        String controllerName = null;
+        for (Map.Entry<String, Map<UrlMethod, Method>> entry : urlMappingMap.entrySet()) {
+            if (entry.getValue().containsKey(key)) {
+                method = entry.getValue().get(key);
+                controllerName = entry.getKey();
+                break;
+            }
+        }
+
+        if (method == null) {
+            resp.setContentType("text/html");
+            PrintWriter out = resp.getWriter();
+            out.println("<html><body>");
+            out.println("<h3>Pas de mapping trouve pour " + req.getMethod() + " " + pathInfo + "</h3>");
+            out.println("<p>Liste des mappings disponibles:</p>");
+            out.println("<ul>");
+            for (Map.Entry<String, Map<UrlMethod, Method>> entry : urlMappingMap.entrySet()) {
+                for (Map.Entry<UrlMethod, Method> mEntry : entry.getValue().entrySet()) {
+                    out.println("<li>" + entry.getKey() + " -> " + mEntry.getKey()
+                            + " (method: " + mEntry.getValue().getName() + ")</li>");
+                }
+            }
+            out.println("</ul>");
             out.println("</body></html>");
             return;
         }
+
+        Object result;
+        try {
+            Object controllerInstance = controllerInstances.get(method.getDeclaringClass());
+            result = method.invoke(controllerInstance);
+        } catch (Exception e) {
+            resp.setContentType("text/html");
+            PrintWriter out = resp.getWriter();
+            out.println("<p>Invok KO: " + e.getMessage() + "</p>");
+            e.printStackTrace(out);
+            return;
+        }
+
+        WebApi api = method.getAnnotation(WebApi.class);
+        if (api != null) {
+            resp.setContentType("application/json;charset=UTF-8");
+            PrintWriter out = resp.getWriter();
+            out.write(api.toJson() ? MAPPER.writeValueAsString(result) : String.valueOf(result));
+            return;
+        }
+
+        resp.setContentType("text/html");
+        PrintWriter out = resp.getWriter();
+        out.println("<html><body>");
 
         out.println("<h2>Liste des controllers</h2>");
         out.println("<ul>");
@@ -88,68 +149,17 @@ public class FrontControllerServlet extends HttpServlet {
         }
         out.println("</ul>");
 
-        String requestURI = req.getRequestURI();
-        String contextPath = req.getContextPath();
-        String pathInfo = requestURI.substring(contextPath.length());
-        if (pathInfo.startsWith("/")) {
-            pathInfo = pathInfo.substring(1);
+        if (result instanceof ModelAndView) {
+            ModelAndView mv = (ModelAndView) result;
+            for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+                req.setAttribute(entry.getKey(), entry.getValue());
+            }
+            req.getRequestDispatcher(prefix + mv.getView() + suffix).forward(req, resp);
+            return;
         }
 
-        out.println("<p>Requested URI: " + requestURI + "</p>");
-        out.println("<p>Path info after servlet: " + pathInfo + "</p>");
-        out.println("<p>HTTP method: " + req.getMethod() + "</p>");
-
-        UrlMethod key = new UrlMethod(pathInfo, req.getMethod());
-        Method method = null;
-        String controllerName = null;
-        boolean found = false;
-        for (Map.Entry<String, Map<UrlMethod, Method>> entry : urlMappingMap.entrySet()) {
-            String ctrlName = entry.getKey();
-            Map<UrlMethod, Method> methodMap = entry.getValue();
-            if (methodMap.containsKey(key)) {
-                method = methodMap.get(key);
-                controllerName = ctrlName;
-                found = true;
-                break;
-            }
-        }
-
-        if (found && method != null) {
-            try {
-                Class<?> controllerClass = method.getDeclaringClass();
-                Object controllerInstance = controllerInstances.get(controllerClass);
-                Object result = method.invoke(controllerInstance);
-
-                if (result instanceof ModelAndView) {
-                    ModelAndView mv = (ModelAndView) result;
-                    Map<String, Object> modelData = mv.getData();
-                    for (Map.Entry<String, Object> entry : modelData.entrySet()) {
-                        req.setAttribute(entry.getKey(), entry.getValue());
-                    }
-                    String viewPath = prefix + mv.getView() + suffix;
-                    req.getRequestDispatcher(viewPath).forward(req, resp);
-                    return;
-                }
-
-                out.println("<h3>Controller->Method: " + controllerName + "->" + method.getName() + "</h3>");
-                out.println("<p>Result: " + result + "</p>");
-            } catch (Exception e) {
-                out.println("<p>Invok KO: " + e.getMessage() + "</p>");
-                e.printStackTrace(out);
-            }
-        } else {
-            out.println("<h3>Pas de mapping trouve pour " + req.getMethod() + " " + pathInfo + "</h3>");
-            out.println("<p>Liste des mappings disponibles:</p>");
-            out.println("<ul>");
-            for (Map.Entry<String, Map<UrlMethod, Method>> entry : urlMappingMap.entrySet()) {
-                String ctrl = entry.getKey();
-                for (Map.Entry<UrlMethod, Method> mEntry : entry.getValue().entrySet()) {
-                    out.println("<li>" + ctrl + " -> " + mEntry.getKey() + " (method: " + mEntry.getValue().getName() + ")</li>");
-                }
-            }
-            out.println("</ul>");
-        }
-
+        out.println("<h3>Controller->Method: " + controllerName + "->" + method.getName() + "</h3>");
+        out.println("<p>Result: " + result + "</p>");
         out.println("</body></html>");
     }
 }

@@ -2,6 +2,7 @@ framework/models/UrlMethod.class
 framework/servlet/FrontControllerServlet.class
 framework/annotations/UrlMapping.class
 framework/annotations/Controller.class
+framework/annotations/WebApi.class
 framework/models/ModelAndView.class
 framework/listener/AppListener.class
 framework/util/ClasseUtilitaire.class
