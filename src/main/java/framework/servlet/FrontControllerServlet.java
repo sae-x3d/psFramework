@@ -13,9 +13,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +119,8 @@ public class FrontControllerServlet extends HttpServlet {
         Object result;
         try {
             Object controllerInstance = controllerInstances.get(method.getDeclaringClass());
-            result = method.invoke(controllerInstance);
+            Object[] args = buildArguments(method, req, resp);
+            result = method.invoke(controllerInstance, args);
         } catch (Exception e) {
             resp.setContentType("text/html");
             PrintWriter out = resp.getWriter();
@@ -158,5 +161,29 @@ public class FrontControllerServlet extends HttpServlet {
         out.println("<h3>Controller->Method: " + controllerName + "->" + method.getName() + "</h3>");
         out.println("<p>Result: " + result + "</p>");
         out.println("</body></html>");
+    }
+
+    private Object[] buildArguments(Method method, HttpServletRequest req, HttpServletResponse resp) {
+        int count = method.getParameterCount();
+        if (count == 0) return new Object[0];
+
+        Object[] args = new Object[count];
+        Parameter[] params = method.getParameters();
+
+        for (int i = 0; i < count; i++) {
+            Class<?> type = params[i].getType();
+            if (type == HttpServletRequest.class) {
+                args[i] = req;
+            } else if (type == HttpServletResponse.class) {
+                args[i] = resp;
+            } else if (type == HttpSession.class) {
+                args[i] = req.getSession();
+            } else {
+                throw new RuntimeException(
+                        "Type de paramètre non supporté : " + type.getName()
+                        + " (méthode " + method.getName() + ", paramètre " + i + ")");
+            }
+        }
+        return args;
     }
 }
