@@ -5,8 +5,7 @@ import framework.annotations.WebApi;
 import framework.listener.AppListener;
 import framework.models.ModelAndView;
 import framework.models.UrlMethod;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import framework.util.ToJson;
 
 import jakarta.servlet.ServletConfig;
 import jakarta.servlet.ServletContext;
@@ -24,8 +23,6 @@ import java.util.Map;
 public class FrontControllerServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String PREFIX_INIT_PARAM = "prefix";
     private static final String SUFFIX_INIT_PARAM = "suffix";
@@ -133,7 +130,7 @@ public class FrontControllerServlet extends HttpServlet {
         if (api != null) {
             resp.setContentType("application/json;charset=UTF-8");
             PrintWriter out = resp.getWriter();
-            out.write(api.toJson() ? MAPPER.writeValueAsString(result) : String.valueOf(result));
+            out.write(api.toJson() ? ToJson.toJson(result) : String.valueOf(result));
             return;
         }
 

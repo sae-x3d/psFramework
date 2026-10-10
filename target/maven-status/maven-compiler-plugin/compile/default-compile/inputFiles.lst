@@ -6,3 +6,4 @@
 /home/Sae/INFO/S5/WEB DIN/@FrameWork/src/main/java/framework/models/UrlMethod.java
 /home/Sae/INFO/S5/WEB DIN/@FrameWork/src/main/java/framework/servlet/FrontControllerServlet.java
 /home/Sae/INFO/S5/WEB DIN/@FrameWork/src/main/java/framework/annotations/WebApi.java
+/home/Sae/INFO/S5/WEB DIN/@FrameWork/src/main/java/framework/util/ToJson.java
