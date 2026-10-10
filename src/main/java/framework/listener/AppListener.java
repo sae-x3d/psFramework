@@ -23,17 +23,21 @@ public class AppListener implements ServletContextListener {
     public void contextInitialized(ServletContextEvent sce) {
         ServletContext ctx = sce.getServletContext();
 
-        String controllerPackage = ctx.getInitParameter(CONTROLLER_PACKAGE_CONTEXT_PARAM);
-        if (controllerPackage == null || controllerPackage.isEmpty()) {
-            controllerPackage = DEFAULT_CONTROLLER_PACKAGE;
+        try {
+            String controllerPackage = ctx.getInitParameter(CONTROLLER_PACKAGE_CONTEXT_PARAM);
+            if (controllerPackage == null || controllerPackage.isEmpty()) {
+                controllerPackage = DEFAULT_CONTROLLER_PACKAGE;
+            }
+
+            List<Class<?>> controllerClasses = ClasseUtilitaire.getAnnotatedClasses(
+                    ClasseUtilitaire.getClassesInPackage(controllerPackage), Controller.class);
+            Map<String, Map<UrlMethod, Method>> urlMappingMap = ClasseUtilitaire.getUrlMappingMap(controllerPackage);
+
+            ctx.setAttribute(CONTROLLER_CLASSES_ATTR, controllerClasses);
+            ctx.setAttribute(URL_MAPPING_MAP_ATTR, urlMappingMap);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        List<Class<?>> allClasses = ClasseUtilitaire.getClassesInPackage(controllerPackage);
-        List<Class<?>> controllerClasses = ClasseUtilitaire.getAnnotatedClasses(allClasses, Controller.class);
-        Map<String, Map<UrlMethod, Method>> urlMappingMap = ClasseUtilitaire.getUrlMappingMap(controllerPackage);
-
-        ctx.setAttribute(CONTROLLER_CLASSES_ATTR, controllerClasses);
-        ctx.setAttribute(URL_MAPPING_MAP_ATTR, urlMappingMap);
     }
 
     @Override

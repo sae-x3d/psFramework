@@ -8,11 +8,12 @@ public class UrlMethod {
     private String method;
 
     public UrlMethod() {
+        this.method = "GET";
     }
 
     public UrlMethod(String url, String method) {
         this.url = url;
-        this.method = method;
+        this.method = method != null ? method.toUpperCase() : "GET";
     }
 
     public String getUrl() {
@@ -28,7 +29,7 @@ public class UrlMethod {
     }
 
     public void setMethod(String method) {
-        this.method = method;
+        this.method = method != null ? method.toUpperCase() : "GET";
     }
 
     @Override

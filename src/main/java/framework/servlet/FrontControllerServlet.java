@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,7 @@ public class FrontControllerServlet extends HttpServlet {
 
     private Map<String, Map<UrlMethod, Method>> urlMappingMap;
     private List<Class<?>> controllerClasses;
+    private Map<Class<?>, Object> controllerInstances = new HashMap<>();
     private String prefix;
     private String suffix;
 
@@ -39,6 +41,16 @@ public class FrontControllerServlet extends HttpServlet {
 
         this.controllerClasses = (List<Class<?>>) ctx.getAttribute(AppListener.CONTROLLER_CLASSES_ATTR);
         this.urlMappingMap = (Map<String, Map<UrlMethod, Method>>) ctx.getAttribute(AppListener.URL_MAPPING_MAP_ATTR);
+
+        if (this.controllerClasses != null) {
+            for (Class<?> clazz : this.controllerClasses) {
+                try {
+                    this.controllerInstances.put(clazz, clazz.getDeclaredConstructor().newInstance());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
 
         this.prefix = config.getInitParameter(PREFIX_INIT_PARAM);
         if (this.prefix == null) this.prefix = DEFAULT_PREFIX;
@@ -61,6 +73,12 @@ public class FrontControllerServlet extends HttpServlet {
         resp.setContentType("text/html");
         PrintWriter out = resp.getWriter();
         out.println("<html><body>");
+
+        if (controllerClasses == null || urlMappingMap == null) {
+            out.println("<p>Framework non initialise (AppListener absent ?)</p>");
+            out.println("</body></html>");
+            return;
+        }
 
         out.println("<h2>Liste des controllers</h2>");
         out.println("<ul>");
@@ -99,7 +117,7 @@ public class FrontControllerServlet extends HttpServlet {
         if (found && method != null) {
             try {
                 Class<?> controllerClass = method.getDeclaringClass();
-                Object controllerInstance = controllerClass.getDeclaredConstructor().newInstance();
+                Object controllerInstance = controllerInstances.get(controllerClass);
                 Object result = method.invoke(controllerInstance);
 
                 if (result instanceof ModelAndView) {
