@@ -1,0 +1,7 @@
+# Artefacts de build / deploiement (generes, non versionnes)
+target/
+build/
+out/
+FrameWork.jar
+lib/FrameWork.jar
+*.war
