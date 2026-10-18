@@ -12,7 +12,7 @@ public class UrlMethod {
     }
 
     public UrlMethod(String url, String method) {
-        this.url = url;
+        this.url = normalizeUrl(url);
         this.method = method != null ? method.toUpperCase() : "GET";
     }
 
@@ -21,7 +21,17 @@ public class UrlMethod {
     }
 
     public void setUrl(String url) {
-        this.url = url;
+        this.url = normalizeUrl(url);
+    }
+
+    private static String normalizeUrl(String url) {
+        if (url == null) {
+            return null;
+        }
+        if (url.isEmpty()) {
+            return "/";
+        }
+        return url.startsWith("/") ? url : "/" + url;
     }
 
     public String getMethod() {

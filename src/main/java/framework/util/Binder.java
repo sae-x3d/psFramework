@@ -1,12 +1,16 @@
 package framework.util;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
+import framework.models.MapFile;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.Part;
 
 public class Binder {
 
@@ -26,6 +30,9 @@ public class Binder {
             } else if (type == String.class || type == int.class || type == boolean.class) {
                 String nom = nomParametre(params[i], method);
                 args[i] = convertirNonObjet(req.getParameter(nom), type, nom, method.getName());
+            } else if (type == MapFile.class) {
+                String nom = nomParametre(params[i], method);
+                args[i] = construireFichier(req, nom, method.getName());
             } else {
                 String nom = nomParametre(params[i], method);
                 args[i] = construireObjet(req, type, nom, method.getName());
@@ -91,6 +98,42 @@ public class Binder {
             }
         }
         return instance;
+    }
+
+    private static MapFile construireFichier(HttpServletRequest req, String nom, String methode) {
+        Part part;
+        try {
+            part = req.getPart(nom);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Lecture du fichier '" + nom + "' impossible (méthode " + methode + ") : " + e.getMessage(), e);
+        }
+        if (part == null) {
+            return null;
+        }
+
+        String nomFichier = part.getSubmittedFileName();
+        if (nomFichier == null) {
+            nomFichier = "";
+        }
+
+        byte[] contenu;
+        try (InputStream in = part.getInputStream()) {
+            contenu = in.readAllBytes();
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Lecture du contenu de '" + nomFichier + "' impossible (méthode " + methode + ") : " + e.getMessage(), e);
+        }
+
+        return new MapFile(nomFichier, extensionDe(nomFichier), contenu);
+    }
+
+    private static String extensionDe(String nomFichier) {
+        int point = nomFichier.lastIndexOf('.');
+        if (point <= 0 || point == nomFichier.length() - 1) {
+            return "";
+        }
+        return nomFichier.substring(point);
     }
 
     private static String nomParametre(Parameter p, Method method) {
