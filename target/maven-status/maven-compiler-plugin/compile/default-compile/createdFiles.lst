@@ -1,5 +1,6 @@
 framework/models/UrlMethod.class
 framework/servlet/FrontControllerServlet.class
+framework/dto/Session.class
 framework/annotations/UrlMapping.class
 framework/models/MapFile.class
 framework/util/Binder.class

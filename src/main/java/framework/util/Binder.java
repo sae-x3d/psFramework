@@ -5,7 +5,10 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Enumeration;
+import java.util.Map;
 
+import framework.dto.Session;
 import framework.models.MapFile;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +30,8 @@ public class Binder {
                 args[i] = resp;
             } else if (type == HttpSession.class) {
                 args[i] = req.getSession();
+            } else if (type == Session.class) {
+                args[i] = chargerSession(req.getSession());
             } else if (type == String.class || type == int.class || type == boolean.class) {
                 String nom = nomParametre(params[i], method);
                 args[i] = convertirNonObjet(req.getParameter(nom), type, nom, method.getName());
@@ -39,6 +44,31 @@ public class Binder {
             }
         }
         return args;
+    }
+
+    private static Session chargerSession(HttpSession httpSession) {
+        Session session = new Session();
+        Enumeration<String> noms = httpSession.getAttributeNames();
+
+        while (noms.hasMoreElements()) {
+            String nom = noms.nextElement();
+            session.set(nom, httpSession.getAttribute(nom));
+        }
+
+        return session;
+    }
+
+    public static void synchroniserSession(HttpServletRequest req, Object[] args) {
+        HttpSession httpSession = req.getSession();
+
+        for (Object arg : args) {
+            if (arg instanceof Session) {
+                Session session = (Session) arg;
+                for (Map.Entry<String, Object> entree : session.getAttributs().entrySet()) {
+                    httpSession.setAttribute(entree.getKey(), entree.getValue());
+                }
+            }
+        }
     }
 
     private static Object convertirNonObjet(String brut, Class<?> type, String nom, String methode) {

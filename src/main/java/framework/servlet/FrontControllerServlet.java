@@ -122,6 +122,7 @@ public class FrontControllerServlet extends HttpServlet {
             Object controllerInstance = controllerInstances.get(method.getDeclaringClass());
             Object[] args = Binder.bind(req, resp, method);
             result = method.invoke(controllerInstance, args);
+            Binder.synchroniserSession(req, args);
         } catch (Exception e) {
             resp.setContentType("text/html");
             PrintWriter out = resp.getWriter();
