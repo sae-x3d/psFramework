@@ -1,6 +1,7 @@
 package framework.servlet;
 
 import framework.annotations.Controller;
+import framework.annotations.RequireAuth;
 import framework.annotations.WebApi;
 import framework.listener.AppListener;
 import framework.models.ModelAndView;
@@ -15,6 +16,7 @@ import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
@@ -29,14 +31,17 @@ public class FrontControllerServlet extends HttpServlet {
 
     private static final String PREFIX_INIT_PARAM = "prefix";
     private static final String SUFFIX_INIT_PARAM = "suffix";
+    private static final String LOGIN_PAGE_INIT_PARAM = "loginPage";
     private static final String DEFAULT_PREFIX = "/WEB-INF/views/";
     private static final String DEFAULT_SUFFIX = ".jsp";
+    private static final String DEFAULT_LOGIN_PAGE = "/login";
 
     private Map<String, Map<UrlMethod, Method>> urlMappingMap;
     private List<Class<?>> controllerClasses;
     private Map<Class<?>, Object> controllerInstances = new HashMap<>();
     private String prefix;
     private String suffix;
+    private String loginPage;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -62,6 +67,9 @@ public class FrontControllerServlet extends HttpServlet {
 
         this.suffix = config.getInitParameter(SUFFIX_INIT_PARAM);
         if (this.suffix == null) this.suffix = DEFAULT_SUFFIX;
+
+        this.loginPage = config.getInitParameter(LOGIN_PAGE_INIT_PARAM);
+        if (this.loginPage == null || this.loginPage.isBlank()) this.loginPage = DEFAULT_LOGIN_PAGE;
     }
 
     @Override
@@ -72,6 +80,43 @@ public class FrontControllerServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         processRequest(req, resp);
+    }
+
+    private boolean estConnecte(HttpServletRequest req) {
+        HttpSession httpSession = req.getSession(false);
+        return httpSession != null && httpSession.getAttribute("user") != null;
+    }
+
+    private boolean aRole(HttpServletRequest req, String role) {
+        HttpSession httpSession = req.getSession(false);
+        return httpSession != null && role.equals(httpSession.getAttribute("role"));
+    }
+
+    private void gererNonAuthentifie(HttpServletRequest req, HttpServletResponse resp, Method method)
+            throws IOException {
+        if (method.isAnnotationPresent(WebApi.class)) {
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            resp.setContentType("application/json;charset=UTF-8");
+            resp.getWriter().write("{\"erreur\":\"Non authentifie\"}");
+        } else {
+            resp.sendRedirect(req.getContextPath() + loginPage);
+        }
+    }
+
+    private void gererAccesRefuse(HttpServletResponse resp, Method method, String roleRequis)
+            throws IOException {
+        resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+
+        if (method.isAnnotationPresent(WebApi.class)) {
+            resp.setContentType("application/json;charset=UTF-8");
+            resp.getWriter().write("{\"erreur\":\"Acces refuse\",\"roleRequis\":\"" + roleRequis + "\"}");
+        } else {
+            resp.setContentType("text/html;charset=UTF-8");
+            resp.getWriter().println("<html><body>");
+            resp.getWriter().println("<h2>Acces refuse</h2>");
+            resp.getWriter().println("<p>Role requis : " + roleRequis + "</p>");
+            resp.getWriter().println("</body></html>");
+        }
     }
 
     private void processRequest(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -115,6 +160,19 @@ public class FrontControllerServlet extends HttpServlet {
             out.println("</ul>");
             out.println("</body></html>");
             return;
+        }
+
+        RequireAuth auth = method.getAnnotation(RequireAuth.class);
+        if (auth != null) {
+            if (!estConnecte(req)) {
+                gererNonAuthentifie(req, resp, method);
+                return;
+            }
+
+            if (!auth.role().isEmpty() && !aRole(req, auth.role())) {
+                gererAccesRefuse(resp, method, auth.role());
+                return;
+            }
         }
 
         Object result;

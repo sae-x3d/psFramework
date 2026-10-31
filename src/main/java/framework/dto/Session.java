@@ -19,6 +19,14 @@ public class Session {
         return attributs.containsKey(nom);
     }
 
+    public boolean estConnecte() {
+        return attributs.containsKey("user");
+    }
+
+    public boolean aRole(String role) {
+        return role != null && role.equals(attributs.get("role"));
+    }
+
     public void remove(String nom) {
         attributs.remove(nom);
     }

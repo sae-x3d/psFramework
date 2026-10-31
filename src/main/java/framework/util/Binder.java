@@ -5,7 +5,10 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import framework.dto.Session;
@@ -60,14 +63,36 @@ public class Binder {
 
     public static void synchroniserSession(HttpServletRequest req, Object[] args) {
         HttpSession httpSession = req.getSession();
+        Map<String, Object> attributs = new HashMap<>();
+        boolean sessionPresente = false;
 
         for (Object arg : args) {
             if (arg instanceof Session) {
-                Session session = (Session) arg;
-                for (Map.Entry<String, Object> entree : session.getAttributs().entrySet()) {
-                    httpSession.setAttribute(entree.getKey(), entree.getValue());
-                }
+                sessionPresente = true;
+                attributs.putAll(((Session) arg).getAttributs());
             }
+        }
+
+        if (!sessionPresente) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> entree : attributs.entrySet()) {
+            httpSession.setAttribute(entree.getKey(), entree.getValue());
+        }
+
+        List<String> aSupprimer = new ArrayList<>();
+        Enumeration<String> noms = httpSession.getAttributeNames();
+
+        while (noms.hasMoreElements()) {
+            String nom = noms.nextElement();
+            if (!attributs.containsKey(nom)) {
+                aSupprimer.add(nom);
+            }
+        }
+
+        for (String nom : aSupprimer) {
+            httpSession.removeAttribute(nom);
         }
     }
 
